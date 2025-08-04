@@ -1,7 +1,16 @@
 name: Upload wfc.log from VM
 
 on:
-  workflow_dispatch:  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      vm_ip:
+        description: 'IP address of the VM'
+        required: true
+        type: string
+      log_path:
+        description: 'Full path to the log file on the VM'
+        required: true
+        type: string
 
 jobs:
   fetch-log-and-upload:
@@ -17,16 +26,14 @@ jobs:
     - name: Fetch log file from VM
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        VM_IP: ${{ secrets.VM_IP }}
-        VM_USER: ${{ secrets.VM_USER }}
       run: |
         mkdir -p ~/.ssh
         echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh -o StrictHostKeyChecking=no $VM_USER@$VM_IP "cat /home/kk_lab_user_185639/data/log/wfc.log" > wfc.log
+        ssh -o StrictHostKeyChecking=no kk_lab_user_185639@${{ inputs.vm_ip }} "cat ${{ inputs.log_path }}" > wfc.log
 
     - name: Upload wfc.log as artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wfc-log
         path: wfc.log
