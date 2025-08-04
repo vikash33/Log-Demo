@@ -21,34 +21,12 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install SSH client
-      run: sudo apt-get update && sudo apt-get install -y openssh-client
+      run: sudo apt-get update && sudo apt-get install -y openssh-client netcat
 
-    - name: Set up SSH and fetch log
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    - name: Test SSH port
       run: |
-        set -e
-
-        echo "🔑 Setting up SSH..."
-        mkdir -p ~/.ssh
-
-        # Use printf to preserve exact formatting
-        printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-
-        chmod 600 ~/.ssh/id_rsa
-        eval "$(ssh-agent -s)"
-        ssh-add ~/.ssh/id_rsa
-
-        echo "🧾 Scanning host key for known_hosts..."
-        ssh-keyscan -H ${{ inputs.vm_ip }} >> ~/.ssh/known_hosts
-
-        echo "📡 Connecting to VM: ${{ inputs.vm_ip }}"
-        ssh -v -o StrictHostKeyChecking=yes kk_lab_user_185639@${{ inputs.vm_ip }} \
-          "cat '${{ inputs.log_path }}'" > wfc.log
-
-        echo "✅ Log file fetched:"
-        head -n 10 wfc.log || echo "(file empty)"
-
-    - name: Check if log file was created
-      run: |
-        if [[ ! -s wfc.log ]];
+        echo "🔍 Testing if port 22 is reachable on ${{ inputs.vm_ip }}..."
+        nc -zv ${{ inputs.vm_ip }} 22 || {
+          echo "❌ Port 22 is not reachable. Is the VM running and exposed?"
+          exit 1
+        }
