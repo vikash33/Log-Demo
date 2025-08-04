@@ -1,0 +1,32 @@
+name: Upload wfc.log from VM
+
+on:
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+jobs:
+  fetch-log-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install SSH client
+      run: sudo apt-get install -y openssh-client
+
+    - name: Fetch log file from VM
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        VM_IP: ${{ secrets.VM_IP }}
+        VM_USER: ${{ secrets.VM_USER }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh -o StrictHostKeyChecking=no $VM_USER@$VM_IP "cat /home/kk_lab_user_185639/data/log/wfc.log" > wfc.log
+
+    - name: Upload wfc.log as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: wfc-log
+        path: wfc.log
