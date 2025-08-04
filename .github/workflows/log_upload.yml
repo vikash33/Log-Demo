@@ -1,0 +1,73 @@
+name: Upload wfc.log from VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      vm_ip:
+        description: 'External IP address of the VM'
+        required: true
+        type: string
+      log_path:
+        description: 'Full path to the log file on the VM'
+        required: true
+        type: string
+
+jobs:
+  fetch-log-and-upload:
+    name: Fetch log from VM and upload as artifact
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v3
+
+    - name: 🧰 Install SSH & netcat tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openssh-client netcat-openbsd
+
+    - name: 🔍 Check SSH port availability
+      run: |
+        echo "🔍 Checking if port 22 is open on ${{ inputs.vm_ip }}..."
+        nc -z -w 5 ${{ inputs.vm_ip }} 22 || {
+          echo "❌ Port 22 is not reachable. Is the VM up and accessible?"
+          exit 1
+        }
+
+    - name: 🔑 Set up SSH and fetch log
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        set -e
+
+        echo "🔐 Writing private key..."
+        mkdir -p ~/.ssh
+        printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+
+        echo "🚀 Starting SSH agent"
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/id_rsa
+
+        echo "🧾 Adding VM to known_hosts..."
+        ssh-keyscan -T 10 -H ${{ inputs.vm_ip }} >> ~/.ssh/known_hosts 2>>scan_error.log || {
+          echo "⚠️ ssh-keyscan failed:"
+          cat scan_error.log
+          exit 1
+        }
+
+        echo "📡 Fetching log file from VM: ${{ inputs.vm_ip }}"
+        ssh -v -o StrictHostKeyChecking=yes kk_lab_user_185639@${{ inputs.vm_ip }} \
+          "cat '${{ inputs.log_path }}'" > wfc.log
+
+        echo "✅ First 10 lines of fetched log:"
+        head -n 10 wfc.log || echo "(file empty)"
+
+    - name: ✅ Verify that log file exists and is not empty
+      run: |
+        if [[ ! -s wfc.log ]]; then
+          echo "❌ wfc.log is empty or missing!"
+          exit 1
+        fi
+
+    - name: 📤 Upload
