@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       vm_ip:
-        description: 'IP address of the VM'
+        description: 'External IP address of the VM (not internal/private)'
         required: true
         type: string
       log_path:
@@ -21,19 +21,19 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install SSH client
-      run: sudo apt-get install -y openssh-client
+      run: sudo apt-get update && sudo apt-get install -y openssh-client
 
-    - name: Fetch log file from VM
+    - name: Print debug info
+      run: echo "Connecting to VM at ${{ inputs.vm_ip }}"
+
+    - name: Set up SSH and fetch log
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
         mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh -o StrictHostKeyChecking=no kk_lab_user_185639@${{ inputs.vm_ip }} "cat ${{ inputs.log_path }}" > wfc.log
 
-    - name: Upload wfc.log as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: wfc-log
-        path: wfc.log
+        # Sanitize the SSH key and write it to file
+        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+
+        # Add key to ag
