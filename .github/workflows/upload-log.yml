@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       vm_ip:
-        description: 'External IP address of the VM (not internal/private)'
+        description: 'External IP address of the VM'
         required: true
         type: string
       log_path:
@@ -23,17 +23,36 @@ jobs:
     - name: Install SSH client
       run: sudo apt-get update && sudo apt-get install -y openssh-client
 
-    - name: Print debug info
-      run: echo "Connecting to VM at ${{ inputs.vm_ip }}"
-
     - name: Set up SSH and fetch log
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
-        mkdir -p ~/.ssh
+        set -e
 
-        # Sanitize the SSH key and write it to file
+        echo "🔑 Setting up SSH..."
+        mkdir -p ~/.ssh
         echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ inputs.vm_ip }} >> ~/.ssh/known_hosts
 
-        # Add key to ag
+        echo "📡 Connecting to VM: ${{ inputs.vm_ip }}"
+        ssh -v -o StrictHostKeyChecking=yes kk_lab_user_185639@${{ inputs.vm_ip }} \
+          "cat '${{ inputs.log_path }}'" > wfc.log
+
+        echo "✅ Log file fetched:"
+        head -n 10 wfc.log || echo "(file empty)"
+
+    - name: Check if log file was created
+      run: |
+        if [[ ! -s wfc.log ]]; then
+          echo "❌ Log file is missing or empty!"
+          exit 1
+        fi
+
+    - name: Upload wfc.log as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wfc-log
+        path: wfc.log
