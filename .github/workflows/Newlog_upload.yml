@@ -1,0 +1,12 @@
+    - name: ✅ Verify that log file exists and is not empty
+      run: |
+        if [[ ! -s wfc.log ]]; then
+          echo "❌ wfc.log is empty or missing!"
+          exit 1
+        fi
+
+    - name: 📤 Upload wfc.log as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wfc-log
+        path: wfc.log
