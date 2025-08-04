@@ -31,10 +31,15 @@ jobs:
 
         echo "🔑 Setting up SSH..."
         mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+
+        # Use printf to preserve exact formatting
+        printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+
         chmod 600 ~/.ssh/id_rsa
         eval "$(ssh-agent -s)"
         ssh-add ~/.ssh/id_rsa
+
+        echo "🧾 Scanning host key for known_hosts..."
         ssh-keyscan -H ${{ inputs.vm_ip }} >> ~/.ssh/known_hosts
 
         echo "📡 Connecting to VM: ${{ inputs.vm_ip }}"
@@ -46,13 +51,4 @@ jobs:
 
     - name: Check if log file was created
       run: |
-        if [[ ! -s wfc.log ]]; then
-          echo "❌ Log file is missing or empty!"
-          exit 1
-        fi
-
-    - name: Upload wfc.log as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: wfc-log
-        path: wfc.log
+        if [[ ! -s wfc.log ]];
