@@ -1,0 +1,68 @@
+name: Upload wfc.log from VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      vm_ip:
+        description: 'Public IP address of the VM (e.g. 34.122.100.23)'
+        required: true
+        type: string
+      log_path:
+        description: 'Full path to the log file on the VM (e.g. /home/kk_lab_user_329846/data/log/wfc.log)'
+        required: true
+        type: string
+
+jobs:
+  fetch-log-and-upload:
+    name: Fetch log from VM and upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install SSH client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openssh-client
+
+    - name: Prepare SSH and test connection
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.GCP_VM_SSH_KEY }}
+      run: |
+        set -e
+
+        # Prepare SSH configuration
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+
+        # Skip host key prompt
+        ssh-keyscan -H ${{ inputs.vm_ip }} >> ~/.ssh/known_hosts
+
+        # Test SSH connection
+        ssh -o BatchMode=yes -o ConnectTimeout=10 kk_lab_user_329846@${{ inputs.vm_ip }} \
+          "echo SSH connection successful"
+
+    - name: Fetch log from VM
+      run: |
+        echo "Fetching log from: ${{ inputs.log_path }}"
+        ssh -o StrictHostKeyChecking=yes kk_lab_user_329846@${{ inputs.vm_ip }} \
+          "cat '${{ inputs.log_path }}'" > wfc.log
+
+        echo "First few lines of the fetched log:"
+        head -n 10 wfc.log || echo "(file empty)"
+
+    - name: Verify that log file exists and is not empty
+      run: |
+        if [[ ! -s wfc.log ]]; then
+          echo "Log file is empty or missing!"
+          exit 1
+        fi
+
+    - name: Upload wfc.log as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wfc-log-${{ github.run_id }}
+        path: wfc.log
