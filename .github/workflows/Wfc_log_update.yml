@@ -19,42 +19,38 @@ jobs:
     timeout-minutes: 10
 
     steps:
-    # Step 1: Checkout the code repository (optional but required for context)
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # Step 2: Install the SSH client
     - name: Install SSH client
       run: |
         sudo apt-get update
         sudo apt-get install -y openssh-client
 
-    # Step 3: Set up SSH using private key and test connection
     - name: Prepare SSH and test connection
       env:
         SSH_PRIVATE_KEY: ${{ secrets.GCP_VM_SSH_KEY }}
       run: |
         set -e
+
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
 
-        # Write the private key to file
+        # Write private key
         printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
-        # Start the SSH agent
+        # Start SSH agent
         eval "$(ssh-agent -s)"
         ssh-add ~/.ssh/id_rsa
 
-        # Skip host authenticity prompt
+        # Add VM to known_hosts to skip prompt
         ssh-keyscan -H ${{ inputs.vm_ip }} >> ~/.ssh/known_hosts
 
-        # Test SSH connection using the correct user
-        echo "Testing SSH connection to kk_lab_user_329846@${{ inputs.vm_ip }}..."
+        # Test SSH connection
         ssh -o BatchMode=yes -o ConnectTimeout=10 \
           kk_lab_user_329846@${{ inputs.vm_ip }} "echo SSH connection successful"
 
-    # Step 4: Fetch log file from the VM
     - name: Fetch log from VM
       run: |
         echo "Fetching log file from: ${{ inputs.log_path }}"
@@ -65,15 +61,13 @@ jobs:
         echo "First few lines of the fetched log:"
         head -n 10 wfc.log || echo "(file empty)"
 
-    # Step 5: Verify the log file is not empty
-    - name: Verify that log file exists and is not empty
+    - name: Verify log file exists and is not empty
       run: |
         if [[ ! -s wfc.log ]]; then
           echo "Log file is empty or missing!"
           exit 1
         fi
 
-    # Step 6: Upload the log file as an artifact
     - name: Upload wfc.log as artifact
       uses: actions/upload-artifact@v4
       with:
